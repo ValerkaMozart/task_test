@@ -1,97 +1,100 @@
-import React, {useMemo, useState} from "react";
-
-const URL = "https://jsonplaceholder.typicode.com/users";
-
-type Company = {
-    bs: string;
-    catchPhrase: string;
-    name: string;
-};
-
-type User = {
-    id: number;
-    email: string;
-    name: string;
-    phone: string;
-    username: string;
-    website: string;
-    company: Company;
-    address: any
-} | null;
-
-interface IButtonProps {
-    onClick: () => void;
+import React, {ChangeEvent, useEffect, useState} from 'react';
+import classes from './App.module.scss'
+import {v4} from "uuid";
+type TItemTask = {
+    label: string,
+    id: string,
+    isDone: boolean
 }
 
-const useDebounce = (Fn: Function, time = 400) => {
-    let timeout: ReturnType<typeof setTimeout> | null = null
-    return function <T>(this: any, ...args: Array<T>) {
-        if (timeout) clearTimeout(timeout)
-        const fnCall = () => Fn.apply(this, args)
-        timeout = setTimeout(fnCall, time)
-    }
-}
-
-const Button: React.FC<IButtonProps> = ({onClick}) => {
+const TaskRender: React.FC<{
+    task: TItemTask,
+    changeHandler: (evt: ChangeEvent<HTMLInputElement>, item: TItemTask) => void
+}> = React.memo((props) => {
+    console.log('effect')
     return (
-        <button type="button" onClick={onClick}>
-            get random user
-        </button>
-    );
-}
+        <div className={classes.itemTask} style={{opacity: props.task.isDone ? '.5' : '1'}}>
+            <span>{props.task.label}</span>
+            {props.task.isDone ?
+                <section className={classes.completedTask}>
+                    Выполнено
+                </section>
+                :
+                <section className={classes.checkboxArea}>
+                    <input type="checkbox"
+                           onChange={evt => props.changeHandler(evt, props.task)}
+                           checked={props.task.isDone}
+                    />
+                </section>
+            }
 
-interface IUserInfoProps {
-    user: User;
-}
 
-const UserInfo: React.FC<IUserInfoProps> = React.memo(({user}) => {
-    return (
-        <table>
-            <thead>
-            <tr>
-                <th>Username</th>
-                <th>Phone number</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr>
-                <td>{user?.name}</td>
-                <td>{user?.phone}</td>
-            </tr>
-            </tbody>
-        </table>
-    );
-}, (prevProps, nextProps) => JSON.stringify(nextProps) === JSON.stringify(prevProps))
+        </div>
+    )
+}, (prevProps, nextProps) => JSON.stringify(prevProps) === JSON.stringify(nextProps))
 
 const App: React.FC = () => {
-    const [item, setItem] = useState<User>(null);
+    const [input, setInput] = useState('')
+    const [tasks, setTasks] = useState<Array<TItemTask>>([])
 
-    const receiveRandomUser = async () => {
-        const id = Math.floor(Math.random() * (10 - 1)) + 1;
-        const urlPath = `${URL}/${id}`
-        if (sessionStorage.getItem(urlPath)) {
-            const cacheData = JSON.parse(sessionStorage.getItem(urlPath) as string) as User
-            setItem(cacheData)
-        } else {
-            const response = await fetch(urlPath);
-            const _user = (await response.json()) as User;
-            sessionStorage.setItem(urlPath,JSON.stringify(_user))
-            setItem(_user);
+    useEffect(() => {
+        if (localStorage.getItem('tasks')) {
+            setTasks(JSON.parse(localStorage.getItem('tasks') as any))
         }
-    };
-
-    const debounce = useMemo(() => {
-        return useDebounce(receiveRandomUser, 200)
     }, [])
 
+    useEffect(() => {
+        localStorage.setItem('tasks', JSON.stringify(tasks))
+    }, [tasks])
+
+    const closeTaskHandler = (evt: ChangeEvent<HTMLInputElement>, item: TItemTask) => {
+        setTasks(prev => prev.map(task => {
+            if (task.id === item.id) {
+                return {...task, isDone: evt.target.checked}
+            }
+            return task
+        }))
+
+    }
+
+    const addTaskHandler = () => {
+        const newArrTasks = [...tasks, {label: input, id: v4(), isDone: false}]
+        setTasks(newArrTasks)
+        setInput('')
+    }
 
     return (
-        <div>
-            <header>Get a random user</header>
-            <Button onClick={debounce}/>
-            <UserInfo user={item}/>
+        <div className={classes.App}>
+            <main>
+                <article className={classes.content}>
+                    <header>
+                        <h4>Todo APP</h4>
+                        <section>
+                            <input
+                                placeholder={'Впишите задачу'}
+                                type="text"
+                                value={input}
+                                onChange={evt => setInput(evt.target.value)}
+                            />
+                            <button
+                                disabled={!input}
+                                onClick={addTaskHandler}
+                            >
+                                Добавить
+                            </button>
+                        </section>
+                    </header>
+                    <article className={classes.tasksAreaWrapper}>
+                        <section className={classes.tasksArea}>
+                            {tasks.map((task, index) => (
+                                <TaskRender changeHandler={closeTaskHandler} task={task} key={task.id}/>
+                            ))}
+                        </section>
+                    </article>
+                </article>
+            </main>
         </div>
-    );
+    )
 }
 
 export default App;
